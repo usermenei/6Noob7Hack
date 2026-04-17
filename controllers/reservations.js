@@ -35,83 +35,99 @@ const handleError = (err, res) => {
         message: "Server error"
     });
 };
-
 // =====================================================
 // @desc    Get all reservations
 // =====================================================
 exports.getReservations = async (req, res) => {
-    try {
-        let filter = {};
+  try {
+    let filter = {};
 
-        if (req.user.role !== 'admin') {
-            filter.user = req.user.id;
-        }
-
-        const reservations = await Reservation.find(filter)
-            .populate({
-                path: 'room',
-                select: 'name capacity price',
-                populate: {
-                    path: 'coworkingSpace',
-                    select: 'name district province'
-                }
-            })
-            .populate({
-                path: 'timeSlots',
-                select: 'startTime endTime'
-            })
-            .populate({
-                path: 'user',
-                select: 'name email'
-            })
-            .sort({ createdAt: -1 });
-
-        res.status(200).json({
-            success: true,
-            count: reservations.length,
-            data: reservations
-        });
-
-    } catch (err) {
-        return handleError(err, res);
+    // ✅ Only admin sees all
+    if (req.user.role !== "admin") {
+      filter.user = req.user.id;
     }
+
+    const reservations = await Reservation.find(filter)
+      .populate({
+        path: "room",
+        select: "name capacity price coworkingSpace",
+        populate: {
+          path: "coworkingSpace",
+          select: "name district province",
+        },
+      })
+      .populate({
+        path: "timeSlots",
+        select: "startTime endTime",
+        options: { sort: { startTime: 1 } }, // ✅ always sorted
+      })
+      .populate({
+        path: "user",
+        select: "name email",
+      })
+      .sort({ createdAt: -1 })
+      .lean(); // ✅ important for clean JSON
+
+    res.status(200).json({
+      success: true,
+      count: reservations.length,
+      data: reservations,
+    });
+  } catch (err) {
+    return handleError(err, res);
+  }
 };
 
 // =====================================================
 // @desc    Get single reservation
 // =====================================================
 exports.getReservation = async (req, res) => {
-    try {
-        const reservation = await Reservation.findById(req.params.id)
-            .populate('room')
-            .populate('timeSlots')
-            .populate('user', 'name email');
+  try {
+    const reservation = await Reservation.findById(req.params.id)
+      .populate({
+        path: "room",
+        select: "name capacity price coworkingSpace",
+        populate: {
+          path: "coworkingSpace",
+          select: "name district province",
+        },
+      })
+      .populate({
+        path: "timeSlots",
+        select: "startTime endTime",
+        options: { sort: { startTime: 1 } },
+      })
+      .populate({
+        path: "user",
+        select: "name email",
+      })
+      .lean();
 
-        if (!reservation) {
-            return res.status(404).json({
-                success: false,
-                message: "Reservation not found"
-            });
-        }
-
-        if (
-            reservation.user._id.toString() !== req.user.id &&
-            req.user.role !== 'admin'
-        ) {
-            return res.status(403).json({
-                success: false,
-                message: "Not authorized"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: reservation
-        });
-
-    } catch (err) {
-        return handleError(err, res);
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found",
+      });
     }
+
+    // ✅ Safe auth check (after lean)
+    if (
+      reservation.user._id.toString() !== req.user.id &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: reservation,
+    });
+  } catch (err) {
+    return handleError(err, res);
+  }
 };
 
 // =====================================================
