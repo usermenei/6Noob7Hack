@@ -1,5 +1,5 @@
 const Reservation = require('../models/Reservation');
-const Coworkingspace = require('../models/Coworkingspace');
+const Coworkingspace = require('../models/CoworkingSpace');
 
 
 // ==========================================
