@@ -20,6 +20,13 @@ const RoomSchema = new mongoose.Schema({
     ref: 'CoworkingSpace',
     required: true
   },
+
+  // ✅ ADD THIS
+  picture: {
+    type: String,
+    default: null
+  },
+
   status: {
     type: String,
     enum: ['active', 'deleted'],

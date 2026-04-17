@@ -9,19 +9,24 @@ const {
   deleteRoom
 } = require('../controllers/rooms');
 
-const { protect } = require('../middleware/auth');
+// ✅ import BOTH protect + authorize
+const { protect, authorize } = require('../middleware/auth');
 
 // 🔥 IMPORTANT: put this BEFORE /:id
 router.get('/availability', getRoomAvailability);
 
+// =====================================================
 // GET all rooms / CREATE room
+// =====================================================
 router.route('/')
   .get(getRooms)
-  .post(protect, createRoom);
+  .post(protect, authorize('admin'), createRoom);
 
-// UPDATE / DELETE room
+// =====================================================
+// UPDATE / DELETE room (ADMIN ONLY)
+// =====================================================
 router.route('/:id')
-  .put(protect, updateRoom)
-  .delete(protect, deleteRoom);
+  .put(protect, authorize('admin'), updateRoom)
+  .delete(protect, authorize('admin'), deleteRoom);
 
 module.exports = router;

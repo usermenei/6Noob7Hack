@@ -9,7 +9,7 @@ const CoworkingSpace = require('../models/CoworkingSpace');
 // =====================================================
 exports.createRoom = async (req, res) => {
   try {
-    const { name, capacity, price, coworkingSpace } = req.body;
+    const { name, capacity, price, coworkingSpace, picture } = req.body;
 
     if (!name || !capacity || !price || !coworkingSpace) {
       return res.status(400).json({
@@ -36,7 +36,10 @@ exports.createRoom = async (req, res) => {
       });
     }
 
-    const room = await Room.create(req.body);
+    const room = await Room.create({
+  ...req.body,
+  picture: picture || null
+});
 
     return res.status(201).json({
       success: true,
@@ -286,7 +289,9 @@ exports.updateRoom = async (req, res) => {
         message: "Duplicate room name"
       });
     }
-
+    if (req.body.picture !== undefined) {
+  room.picture = req.body.picture;
+}
     Object.assign(room, req.body);
     await room.save();
 
