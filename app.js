@@ -26,7 +26,10 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 5000}/api/v1`,
+        url:
+          process.env.NODE_ENV === "production"
+            ? "https://6-noob7-hack-backend.vercel.app/api/v1" // 🔥 CHANGE THIS
+            : `http://localhost:${process.env.PORT || 5000}/api/v1`,
       },
     ],
   },
@@ -36,21 +39,49 @@ const swaggerOptions = {
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
 // =====================================================
-// Middleware
+// CORS CONFIG (FIXED)
 // =====================================================
-app.set("query parser", "extended");
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://your-frontend.vercel.app", // 🔥 CHANGE THIS
+];
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: function (origin, callback) {
+      // allow requests with no origin (mobile apps, curl, postman)
+      if (!origin) return callback(null, true);
+
+      // allow Vercel preview URLs
+      if (origin.includes(".vercel.app")) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// 🔥 VERY IMPORTANT (preflight)
+app.options("*", cors());
+
+// =====================================================
+// Middleware
+// =====================================================
+app.set("query parser", "extended");
 app.use(express.json());
 app.use(cookieParser());
 
+// =====================================================
 // Swagger UI
+// =====================================================
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // =====================================================
