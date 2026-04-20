@@ -1,0 +1,12 @@
+{
+  "testEnvironment": "node",
+  "testMatch": ["**/test/**/*.jest.js", "**/?(*.)+(spec|test).js"],
+  "moduleFileExtensions": ["js","json","node"],
+  "collectCoverage": true,
+  "collectCoverageFrom": [
+    "controllers/**/*.js",
+    "utils/**/*.js"
+  ],
+  "coverageDirectory": "coverage",
+  "coverageReporters": ["text", "lcov"]
+}
