@@ -168,7 +168,7 @@ exports.addReservation = async (req, res) => {
                 message: "All slots must belong to same room"
             });
         }
-
+/*
         // 🔥 continuous check
         for (let i = 0; i < slots.length - 1; i++) {
             const end = new Date(slots[i].endTime).getTime();
@@ -181,7 +181,7 @@ exports.addReservation = async (req, res) => {
                 });
             }
         }
-
+*/
         // 🔥 check if any slot already booked
         const existing = await Reservation.findOne({
             timeSlots: { $in: timeSlotIds },
