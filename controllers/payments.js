@@ -664,3 +664,88 @@ exports.getPayment = async (req, res) => {
         return handleError(err, res);
     }
 };
+
+// GET /payments/user/:id
+// fetch all payment records for logged-in user (auth required); sorted by date desc
+exports.getPaymentsByUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (!req.user || (req.user.id && req.user.id !== userId) || (req.user._id && String(req.user._id) !== String(userId))) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const payments = await Payment.find({ user: userId }).sort({ createdAt: -1 }).lean();
+
+    const decorated = payments.map(p => {
+      if (p.status === 'refund_required') {
+        return { ...p, uiBadge: { color: 'orange', tooltip: 'Contact Admin' } };
+      }
+      return p;
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: decorated.length,
+      data: decorated
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: err.message || 'Server error' });
+  }
+};
+
+// =====================================================
+// @desc    Update payment method (only when pending)
+// @route   PUT /api/v1/payments/:id/method
+// @access  Private (owner or admin)
+// Business rule: if payment.status === 'completed' -> cannot change (user sees message)
+// =====================================================
+exports.updatePaymentMethod = async (req, res) => {
+    try {
+        const payment = await Payment.findById(req.params.id);
+
+        if (!payment) {
+            return res.status(404).json({ success: false, message: 'Payment not found' });
+        }
+
+        // owner or admin only
+        if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        // Business rules
+        if (payment.status === 'completed') {
+            return res.status(400).json({ success: false, message: 'Payment already completed. Contact Admin to change.' });
+        }
+
+        if (payment.status !== 'pending') {
+            return res.status(400).json({ success: false, message: 'Only pending payments can change method' });
+        }
+
+        const { method } = req.body;
+        if (!method || !['qr', 'cash'].includes(method)) {
+            return res.status(400).json({ success: false, message: 'method must be "qr" or "cash"' });
+        }
+
+        // update method but keep status as pending
+        payment.method = method;
+
+        // if switching away from qr, clear any activeQr reference
+        if (method !== 'qr') {
+            payment.activeQr = null;
+        }
+
+        // if switching away from cash, clear cash confirmation fields (if any)
+        if (method !== 'cash') {
+            payment.cashConfirmedBy = undefined;
+            payment.cashConfirmedAt = undefined;
+        }
+
+        await payment.save();
+
+        return res.status(200).json({ success: true, data: payment });
+    } catch (err) {
+        return handleError(err, res);
+    }
+};

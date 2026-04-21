@@ -1770,3 +1770,339 @@
  *       403:
  *         description: Admin only
  */
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Payments
+ *     description: Payment processing
+ */
+
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *     cookieAuth:
+ *       type: apiKey
+ *       in: cookie
+ *       name: token
+ *
+ *   schemas:
+ *     Payment:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: "664abc123def456ghi789jkl"
+ *         reservation:
+ *           type: string
+ *           example: "664f1a2b3c4d5e6f7a8b9c0d"
+ *         user:
+ *           type: string
+ *           example: "664f1a2b3c4d5e6f7a8b9c01"
+ *         amount:
+ *           type: number
+ *           example: 500
+ *         method:
+ *           type: string
+ *           enum: [qr, cash]
+ *         status:
+ *           type: string
+ *           enum: [pending, completed, failed, cancelled, refund_required]
+ *         transactionId:
+ *           type: string
+ *           nullable: true
+ *           example: "TXN-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         uiBadge:
+ *           type: object
+ *           nullable: true
+ *           description: มีเฉพาะตอน status เป็น refund_required
+ *           properties:
+ *             color:
+ *               type: string
+ *               example: "orange"
+ *             tooltip:
+ *               type: string
+ *               example: "Contact Admin"
+ *
+ *     Error:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *           example: "Error description"
+ *
+ *     Success:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         message:
+ *           type: string
+ */
+
+/**
+ * @swagger
+ * /payments/user/{userId}:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get all payments for a specific user
+ *     description: |
+ *       ดึง payment ทั้งหมดของ user เรียงจากใหม่ไปเก่า
+ *       - User สามารถดูได้เฉพาะ payment ของตัวเองเท่านั้น
+ *       - ถ้า payment มีสถานะ `refund_required` จะมี `uiBadge` ติดมาด้วย
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *         example: "664f1a2b3c4d5e6f7a8b9c01"
+ *     responses:
+ *       200:
+ *         description: รายการ payment ของ user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                   example: 2
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Payment'
+ *             example:
+ *               success: true
+ *               count: 1
+ *               data:
+ *                 - _id: "664abc123def456ghi789jkl"
+ *                   reservation: "664f1a2b3c4d5e6f7a8b9c0d"
+ *                   amount: 500
+ *                   method: "qr"
+ *                   status: "refund_required"
+ *                   createdAt: "2024-06-01T10:00:00.000Z"
+ *                   uiBadge:
+ *                     color: "orange"
+ *                     tooltip: "Contact Admin"
+ *       403:
+ *         description: ไม่มีสิทธิ์ดู payment ของ user คนอื่น
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Unauthorized"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/method:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Update payment method (qr ↔ cash)
+ *     description: |
+ *       เปลี่ยนวิธีการชำระเงินของ payment ที่มีสถานะ `pending`
+ *       - เปลี่ยนได้เฉพาะ payment สถานะ **pending** เท่านั้น
+ *       - ถ้าสถานะเป็น `completed` แล้ว ต้องติดต่อ Admin
+ *       - เจ้าของ payment หรือ Admin เท่านั้นที่เปลี่ยนได้
+ *       - ถ้าเปลี่ยนจาก `qr` → `cash` จะล้าง activeQr ออกอัตโนมัติ
+ *       - ถ้าเปลี่ยนจาก `cash` → `qr` จะล้างข้อมูล cashConfirmed ออกอัตโนมัติ
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *         example: "664abc123def456ghi789jkl"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [method]
+ *             properties:
+ *               method:
+ *                 type: string
+ *                 enum: [qr, cash]
+ *                 example: "cash"
+ *     responses:
+ *       200:
+ *         description: เปลี่ยนวิธีชำระเงินสำเร็จ
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       400:
+ *         description: |
+ *           - `method` ไม่ถูกต้อง (ต้องเป็น qr หรือ cash)
+ *           - Payment สถานะ `completed` แล้ว
+ *           - Payment ไม่ใช่สถานะ `pending`
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             examples:
+ *               completed:
+ *                 summary: Payment สำเร็จแล้ว
+ *                 value:
+ *                   success: false
+ *                   message: "Payment already completed. Contact Admin to change."
+ *               notPending:
+ *                 summary: ไม่ใช่ pending
+ *                 value:
+ *                   success: false
+ *                   message: "Only pending payments can change method"
+ *               invalidMethod:
+ *                 summary: method ไม่ถูกต้อง
+ *                 value:
+ *                   success: false
+ *                   message: "method must be \"qr\" or \"cash\""
+ *       403:
+ *         description: ไม่ใช่เจ้าของ payment หรือ Admin
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Not authorized"
+ *       404:
+ *         description: ไม่พบ payment
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Payment not found"
+ */
+
+// ============================================================
+// RESERVATIONS
+// ============================================================
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Reservations
+ *     description: Reservation management
+ */
+
+/**
+ * @swagger
+ * /reservations/{id}:
+ *   delete:
+ *     tags: [Reservations]
+ *     summary: Cancel a reservation (soft cancel)
+ *     description: |
+ *       ยกเลิกการจอง โดยมีเงื่อนไขดังนี้
+ *       - ยกเลิกได้เฉพาะ **ก่อนถึงเวลา check-in** เท่านั้น
+ *       - เจ้าของ reservation หรือ Admin เท่านั้นที่ยกเลิกได้
+ *
+ *       **กรณี payment `completed` แล้ว:**
+ *       - reservation → `cancelled`
+ *       - payment → `refund_required`
+ *       - แจ้ง Admin เพื่อดำเนินการคืนเงิน
+ *
+ *       **กรณี payment `pending` หรือยังไม่ได้ชำระ:**
+ *       - reservation → `cancelled`
+ *       - payment (ถ้ามี) → `cancelled`
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Reservation ID
+ *         example: "664f1a2b3c4d5e6f7a8b9c0d"
+ *     responses:
+ *       200:
+ *         description: ยกเลิกการจองสำเร็จ
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *             examples:
+ *               unpaid:
+ *                 summary: ยังไม่ได้ชำระเงิน
+ *                 value:
+ *                   success: true
+ *                   message: "Reservation cancelled"
+ *               refundRequired:
+ *                 summary: ชำระแล้ว — ต้องคืนเงิน
+ *                 value:
+ *                   success: true
+ *                   message: "Reservation cancelled. Payment marked as refund_required and admin notified."
+ *       400:
+ *         description: เลยเวลา check-in แล้ว ไม่สามารถยกเลิกได้
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Cannot cancel reservation after check-in time has passed"
+ *       403:
+ *         description: ไม่ใช่เจ้าของ reservation หรือ Admin
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Not authorized"
+ *       404:
+ *         description: ไม่พบ reservation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Reservation not found"
+ */

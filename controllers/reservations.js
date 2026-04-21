@@ -2,6 +2,7 @@ const Reservation = require('../models/Reservation');
 const Room = require('../models/Room');
 const TimeSlot = require('../models/TimeSlot');
 const User = require('../models/User');
+const Payment = require('../models/Payment');
 
 // =====================================================
 // Helper: Handle Common Errors
@@ -308,23 +309,62 @@ exports.deleteReservation = async (req, res) => {
             });
         }
 
-        if (
-            reservation.user.toString() !== req.user.id &&
-            req.user.role !== 'admin'
-        ) {
-            return res.status(403).json({
-                success: false,
-                message: "Not authorized"
-            });
-        }
+    if (
+      reservation.user.toString() !== req.user.id &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized"
+      });
+    }
 
-        reservation.status = 'cancelled';
-        await reservation.save();
+    // Load time slots to determine check-in time
+    const slots = await TimeSlot.find({ _id: { $in: reservation.timeSlots } }).sort({ startTime: 1 });
+    const firstStart = slots.length ? new Date(slots[0].startTime) : null;
 
-        res.status(200).json({
-            success: true,
-            message: "Reservation cancelled"
-        });
+    // Block cancellation if check-in time has passed
+    if (firstStart && new Date() >= firstStart) {
+      return res.status(400).json({ success: false, message: 'Cannot cancel reservation after check-in time has passed' });
+    }
+
+    // Check payment associated with this reservation
+    const payment = await Payment.findOne({ reservation: reservation._id });
+
+    if (payment && payment.status === 'completed') {
+      // Paid -> mark reservation cancelled and payment as refund_required, notify admin
+      reservation.status = 'cancelled';
+      await reservation.save();
+
+      payment.status = 'refund_required';
+      await payment.save();
+
+      // Placeholder for notifying admin (could be email/queue)
+      console.log(`ADMIN NOTIFY: Reservation ${reservation._id} cancelled and payment ${payment._id} requires refund.`);
+
+      // After cancellation slots are effectively released because reservation is no longer pending/success
+      return res.status(200).json({
+        success: true,
+        message: 'Reservation cancelled. Payment marked as refund_required and admin notified.'
+      });
+    }
+
+    // Unpaid or non-completed payment: cancel both reservation and pending payment (if any)
+    reservation.status = 'cancelled';
+    await reservation.save();
+
+    if (payment && payment.status === 'pending') {
+      payment.status = 'cancelled';
+      await payment.save();
+    }
+
+    // Slots are released implicitly by changing reservation status
+    // Active reservation count is derived from Reservation collection (status pending/success) so no extra user field to decrement
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reservation cancelled'
+    });
 
     } catch (err) {
         return handleError(err, res);

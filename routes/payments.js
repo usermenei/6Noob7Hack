@@ -11,7 +11,9 @@ const {
     getQrStatus,
     confirmCashPayment,
     getPendingCashPayments,
-    getPayment
+    getPayment,
+    getPaymentsByUser,
+    updatePaymentMethod
 } = require('../controllers/payments');
 
 const { protect } = require('../middleware/auth');
@@ -22,6 +24,7 @@ const { protect } = require('../middleware/auth');
 router.post('/',                  protect, createPayment);
 router.put('/:id/confirm',        protect, confirmPayment);
 router.put('/:id/fail',           protect, failPayment);
+router.put('/:id/method',        protect, updatePaymentMethod);
 
 // -------------------------------------------------------
 // US2-2  QR payment
@@ -36,6 +39,12 @@ router.get('/:id/qr-status',      protect, getQrStatus);
 // -------------------------------------------------------
 router.put('/:id/confirm-cash',   protect, confirmCashPayment);
 router.get('/pending-cash',       protect, getPendingCashPayments);
+
+// -------------------------------------------------------
+// User payments (fetch all payment records for a user, sorted by date desc)
+// Keep before the generic :id route to avoid route collision
+// -------------------------------------------------------
+router.get('/user/:id',           protect, getPaymentsByUser);
 
 // -------------------------------------------------------
 // Generic  (keep :id routes LAST to avoid swallowing static paths)
