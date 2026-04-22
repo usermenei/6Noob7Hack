@@ -1,4 +1,4 @@
-// controllers/paymentController.js
+// controllers/payments.js
 
 const Payment     = require('../models/Payment');
 const Reservation = require('../models/Reservation');
@@ -222,7 +222,6 @@ exports.failPayment = async (req, res) => {
 // =====================================================
 exports.confirmQrPayment = async (req, res) => {
     try {
-        const { adminQrCodeId } = req.body;
         const payment = await Payment.findById(req.params.id);
 
         if (!payment) {
@@ -240,25 +239,10 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        // Verify user authorization
         if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        if (!adminQrCodeId) {
-            return res.status(400).json({
-                success: false,
-                message: 'adminQrCodeId is required'
-            });
-        }
-
-        // Verify QrCode exists and is active
-        const adminQr = await QrCode.findById(adminQrCodeId);
-        if (!adminQr || !adminQr.isActive) {
-            return res.status(404).json({ success: false, message: 'QrCode not found or inactive' });
-        }
-
-        // Verify QrCode belongs to this coworking space
         const reservation = await Reservation.findById(payment.reservation)
             .populate({ path: 'room', select: 'coworkingSpace' });
 
@@ -266,28 +250,34 @@ exports.confirmQrPayment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Reservation not found' });
         }
 
-        if (adminQr.coworkingSpace.toString() !== reservation.room.coworkingSpace.toString()) {
-            return res.status(400).json({
+        const coworkingSpaceId = reservation.room.coworkingSpace;
+
+        const adminQr = await QrCode.findOne({
+            coworkingSpace: coworkingSpaceId,
+            isActive: true
+        });
+
+        if (!adminQr) {
+            return res.status(404).json({
                 success: false,
-                message: 'QR code does not belong to this coworking space'
+                message: 'No active QR code found for this coworking space'
             });
         }
 
         const transactionId = `TXN-${randomUUID().toUpperCase()}`;
         payment.status = 'completed';
         payment.transactionId = transactionId;
-        payment.adminQrCode = null;
+        payment.adminQrCode = adminQr._id; 
         await payment.save();
         await markReservationSuccess(payment.reservation);
-        await Reservation.findByIdAndUpdate(payment.reservation, { status: 'success' });
 
         return res.status(200).json({
             success: true,
             data: {
-                paymentId: payment._id,
+                paymentId:     payment._id,
                 transactionId: payment.transactionId,
-                status: payment.status,
-                amount: payment.amount
+                status:        payment.status,
+                amount:        payment.amount
             }
         });
 
@@ -551,7 +541,8 @@ exports.uploadQrCode = async (req, res) => {
 // =====================================================
 exports.getQrCode = async (req, res) => {
     try {
-        const { spaceId } = req.query;
+        const spaceId = req.params.coworkingId || req.query.spaceId;
+
         if (!spaceId) {
             return res.status(400).json({ success: false, message: 'spaceId is required' });
         }
@@ -559,13 +550,12 @@ exports.getQrCode = async (req, res) => {
         const qrDoc = await QrCode.findOne({
             coworkingSpace: spaceId,
             isActive: true
-        }).populate('uploadedBy', 'name');
+        });
 
         if (!qrDoc) {
             return res.status(404).json({ success: false, message: 'No active QR code found' });
         }
 
-        // ส่งกลับเป็น image buffer โดยตรง
         const imageBuffer = Buffer.from(qrDoc.imageData, 'base64');
         res.set('Content-Type', qrDoc.mimeType);
         return res.send(imageBuffer);

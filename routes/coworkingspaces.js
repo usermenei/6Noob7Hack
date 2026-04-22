@@ -10,7 +10,8 @@ const {
   updateCoworkingspacePhoto
 } = require('../controllers/coworkingspaces');
 
-// ✅ Import the new room functions
+const { getQrCode } = require('../controllers/payments');
+
 const { getRoomsByCoworking, getRoomByCoworking } = require('../controllers/rooms');
 
 const { protect } = require('../middleware/auth');
@@ -30,5 +31,7 @@ router.route('/:id/photo')
 // ✅ Nested room routes
 router.get('/:coworkingId/rooms', getRoomsByCoworking);
 router.get('/:coworkingId/rooms/:roomId', getRoomByCoworking);
+
+router.get('/:coworkingId/qr-code', protect, getQrCode);
 
 module.exports = router;

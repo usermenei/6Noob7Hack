@@ -1473,63 +1473,33 @@
 
 /**
  * @swagger
- * /payments/admin/qr-code:
- *   post:
- *     tags: [Payments]
- *     summary: Upload admin QR code image (Admin only, multipart/form-data)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required: [coworkingSpace, image]
- *             properties:
- *               coworkingSpace:
- *                 type: string
- *                 description: Coworking space ID
- *               image:
- *                 type: string
- *                 format: binary
- *                 description: QR code image file
- *     responses:
- *       201:
- *         description: QR code uploaded
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   description: QrCode document
- *       401:
- *         description: Not authenticated
- *       403:
- *         description: Admin only
+ * /coworkingspaces/{coworkingId}/qr-code:
  *   get:
- *     tags: [Payments]
- *     summary: Get admin QR code image (for users to scan when paying)
+ *     tags: [CoworkingSpaces]
+ *     summary: Get active QR code image for a coworking space (for payment page)
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: coworkingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Coworking space ID
  *     responses:
  *       200:
- *         description: QR code image data
+ *         description: QR code image (returns raw image binary)
  *         content:
- *           application/json:
+ *           image/png:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
+ *               type: string
+ *               format: binary
+ *           image/jpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No active QR code found for this coworking space
  *       401:
  *         description: Not authenticated
  */
@@ -1790,10 +1760,10 @@
 
 /**
  * @swagger
- * /payments/{id}/confirm-qr:
+ * /api/v1/payments/{id}/confirm-qr:
  *   put:
  *     tags: [Payments]
- *     summary: Confirm QR payment (attach QrCode reference)
+ *     summary: Confirm QR payment — ระบบหา QR code จาก coworking space ของ reservation เองอัตโนมัติ
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1802,6 +1772,7 @@
  *         required: true
  *         schema:
  *           type: string
+ *         description: Payment ID
  *     responses:
  *       200:
  *         description: QR payment confirmed
@@ -1814,11 +1785,25 @@
  *                   type: boolean
  *                   example: true
  *                 data:
- *                   $ref: '#/components/schemas/Payment'
+ *                   type: object
+ *                   properties:
+ *                     paymentId:
+ *                       type: string
+ *                     transactionId:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       example: "completed"
+ *                     amount:
+ *                       type: number
+ *       400:
+ *         description: Not a QR payment, or payment not pending
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Payment or reservation not found, or no active QR code for this space
  *       401:
  *         description: Not authenticated
- *       404:
- *         description: Payment not found
  */
 
 /**

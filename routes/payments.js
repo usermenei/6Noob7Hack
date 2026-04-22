@@ -13,7 +13,6 @@ const {
     updatePaymentMethod,
     uploadQrCode,
     uploadQrMiddleware,
-    getQrCode,
     getQrCodeInfo,
     adminUpdatePaymentMethod,
     adminCancelPayment
@@ -51,7 +50,6 @@ router.get('/user/:id',           protect, getPaymentsByUser);
 // -------------------------------------------------------
 router.post('/admin/qr-code',      protect, authorize('admin'), uploadQrMiddleware, uploadQrCode);
 router.get('/admin/qr-code/info',  protect, authorize('admin'), getQrCodeInfo);
-router.get('/admin/qr-code',       protect, getQrCode);
 
 router.put('/admin/:id/method',  protect, authorize('admin'), adminUpdatePaymentMethod);
 router.put('/admin/:id/cancel',  protect, authorize('admin'), adminCancelPayment);
