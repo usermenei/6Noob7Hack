@@ -3,30 +3,51 @@ const TimeSlot = require('../models/TimeSlot');
 const TZ_OFFSET_HOURS = 7;
 
 /**
- * Convert a local (UTC+7) date + time into a real UTC Date object
+ * Create a UTC Date from a UTC+7 local time safely
  */
 function toUTCDate(dateStr, hour, minute) {
-  const d = new Date(dateStr);
-  d.setHours(hour - TZ_OFFSET_HOURS, minute, 0, 0);
-  return d;
+  const [year, month, day] = dateStr.split('-').map(Number);
+
+  return new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour - TZ_OFFSET_HOURS,
+    minute,
+    0,
+    0
+  ));
 }
 
 /**
- * Get UTC range for a local (UTC+7) day
+ * Get full UTC range for a UTC+7 local day
  */
 function getUTCDayRange(dateStr) {
-  const start = new Date(dateStr);
-  start.setHours(0 - TZ_OFFSET_HOURS, 0, 0, 0);
+  const [year, month, day] = dateStr.split('-').map(Number);
 
-  const end = new Date(dateStr);
-  end.setHours(23 - TZ_OFFSET_HOURS, 59, 59, 999);
+  const start = new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    -TZ_OFFSET_HOURS,
+    0,
+    0,
+    0
+  ));
+
+  const end = new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    23 - TZ_OFFSET_HOURS,
+    59,
+    59,
+    999
+  ));
 
   return { start, end };
 }
 
-/**
- * Auto-generate 1-hour time slots for a room on a given date (UTC+7 aware)
- */
 async function generateDailySlots(
   roomId,
   dateStr,
@@ -38,7 +59,6 @@ async function generateDailySlots(
 
   const { start: startOfDay, end: endOfDay } = getUTCDayRange(dateStr);
 
-  // Fetch existing slots
   const existing = await TimeSlot.find({
     room: roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
@@ -50,14 +70,13 @@ async function generateDailySlots(
 
   const toCreate = [];
 
-  // Start cursor in UTC (converted from UTC+7)
   let cursor = toUTCDate(dateStr, openHour, openMin);
   const closeDate = toUTCDate(dateStr, closeHour, closeMin);
 
   while (cursor < closeDate) {
     const slotStart = new Date(cursor);
     const slotEnd = new Date(cursor);
-    slotEnd.setHours(slotEnd.getHours() + 1);
+    slotEnd.setUTCHours(slotEnd.getUTCHours() + 1);
 
     if (slotEnd > closeDate) break;
 
@@ -69,7 +88,7 @@ async function generateDailySlots(
       });
     }
 
-    cursor.setHours(cursor.getHours() + 1);
+    cursor.setUTCHours(cursor.getUTCHours() + 1);
   }
 
   if (toCreate.length > 0) {
