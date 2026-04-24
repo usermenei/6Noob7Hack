@@ -14,7 +14,8 @@ const {
     userCancelPayment,
     uploadQrCode,
     uploadQrMiddleware,
-    getQrCodeInfo,
+    getQrCode,
+    getQrCodeBySpace,
     adminUpdatePaymentMethod,
     adminCancelPayment
 } = require('../controllers/payments');
@@ -32,6 +33,10 @@ router.put('/:id/fail',           protect, failPayment);        // Payment faile
 // US2-2  QR payment (using QrCode)
 // -------------------------------------------------------
 router.put('/:id/confirm-qr',       protect, confirmQrPayment); // User click confirm paid button
+router.get('/:paymentId/qr-code',   protect, getQrCode);        // Get Qr code for a payment (user & admin can see)
+
+// Admin: get QR by coworking space id
+router.get('/admin/qr-code/:spaceId', protect, authorize('admin'), getQrCodeBySpace);
 
 // -------------------------------------------------------
 // US2-3  Cash payment
@@ -53,7 +58,7 @@ router.put('/:id/cancel', protect, userCancelPayment);
 // US2-7 Admin manage Co-working space's Qr code
 // -------------------------------------------------------
 router.post('/admin/qr-code',      protect, authorize('admin'), uploadQrMiddleware, uploadQrCode);
-router.get('/admin/qr-code/info',  protect, authorize('admin'), getQrCodeInfo);
+
 
 // -------------------------------------------------------
 // US2-8 Admin update user's payment method
