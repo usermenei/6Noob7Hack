@@ -1,27 +1,64 @@
 const TimeSlot = require('../models/TimeSlot');
 
+const TZ_OFFSET_HOURS = 7;
+
 /**
- * Auto-generate 1-hour time slots for a room on a given date,
- * based on the coworking space's openTime / closeTime.
- *
- * Slots that already exist in the DB are skipped (upsert-safe).
- *
- * @param {ObjectId|string} roomId
- * @param {string} dateStr   – "YYYY-MM-DD"
- * @param {string} openTime  – "HH:MM"  e.g. "08:00"
- * @param {string} closeTime – "HH:MM"  e.g. "20:00"
- * @returns {Promise<TimeSlot[]>}  all slots for that room/day (existing + newly created)
+ * Create a UTC Date from a UTC+7 local time safely
  */
-async function generateDailySlots(roomId, dateStr, openTime = '08:00', closeTime = '20:00') {
-  const [openHour, openMin]   = openTime.split(':').map(Number);
+function toUTCDate(dateStr, hour, minute) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+
+  return new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour - TZ_OFFSET_HOURS,
+    minute,
+    0,
+    0
+  ));
+}
+
+/**
+ * Get full UTC range for a UTC+7 local day
+ */
+function getUTCDayRange(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+
+  const start = new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    -TZ_OFFSET_HOURS,
+    0,
+    0,
+    0
+  ));
+
+  const end = new Date(Date.UTC(
+    year,
+    month - 1,
+    day,
+    23 - TZ_OFFSET_HOURS,
+    59,
+    59,
+    999
+  ));
+
+  return { start, end };
+}
+
+async function generateDailySlots(
+  roomId,
+  dateStr,
+  openTime = '08:00',
+  closeTime = '20:00'
+) {
+  const [openHour, openMin] = openTime.split(':').map(Number);
   const [closeHour, closeMin] = closeTime.split(':').map(Number);
 
-  const startOfDay = new Date(dateStr);
-  const endOfDay   = new Date(dateStr);
-  startOfDay.setHours(0, 0, 0, 0);
-  endOfDay.setHours(23, 59, 59, 999);
+  const { start: startOfDay, end: endOfDay } = getUTCDayRange(dateStr);
 
-  // Fetch slots that already exist for this room on this day
   const existing = await TimeSlot.find({
     room: roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
@@ -33,32 +70,31 @@ async function generateDailySlots(roomId, dateStr, openTime = '08:00', closeTime
 
   const toCreate = [];
 
-  // Walk hour-by-hour from openTime → closeTime
-  let cursor = new Date(dateStr);
-  cursor.setHours(openHour, openMin, 0, 0);
-
-  const closeDate = new Date(dateStr);
-  closeDate.setHours(closeHour, closeMin, 0, 0);
+  let cursor = toUTCDate(dateStr, openHour, openMin);
+  const closeDate = toUTCDate(dateStr, closeHour, closeMin);
 
   while (cursor < closeDate) {
     const slotStart = new Date(cursor);
-    const slotEnd   = new Date(cursor);
-    slotEnd.setHours(slotEnd.getHours() + 1);
+    const slotEnd = new Date(cursor);
+    slotEnd.setUTCHours(slotEnd.getUTCHours() + 1);
 
-    if (slotEnd > closeDate) break; // don't exceed closing time
+    if (slotEnd > closeDate) break;
 
     if (!existingStarts.has(slotStart.getTime())) {
-      toCreate.push({ room: roomId, startTime: slotStart, endTime: slotEnd });
+      toCreate.push({
+        room: roomId,
+        startTime: slotStart,
+        endTime: slotEnd
+      });
     }
 
-    cursor.setHours(cursor.getHours() + 1);
+    cursor.setUTCHours(cursor.getUTCHours() + 1);
   }
 
   if (toCreate.length > 0) {
     await TimeSlot.insertMany(toCreate, { ordered: false });
   }
 
-  // Return the full set of slots for this room/day
   return TimeSlot.find({
     room: roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
