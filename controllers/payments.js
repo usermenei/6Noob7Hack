@@ -602,29 +602,87 @@ exports.uploadQrCode = async (req, res) => {
 
 // =====================================================
 // @desc    Get active admin QR code image (for user payment page)
-// @route   GET /api/v1/payments/admin/qr-code?spaceId=:id
-// @access  Private
+// @route   GET /api/v1/payments/:paymentId/qr-code
+// @access  Private (user & admin)
 // =====================================================
 exports.getQrCode = async (req, res) => {
     try {
-        const spaceId = req.params.coworkingId || req.query.spaceId;
+        const paymentId = req.params.id;
 
-        if (!spaceId) {
-            return res.status(400).json({ success: false, message: 'spaceId is required' });
+        // 1) หา payment
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Payment not found'
+            });
         }
 
+        // 2) ตรวจสิทธิ์ (เจ้าของ หรือ admin)
+        if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized'
+            });
+        }
+
+        // 3) ต้องเป็น QR method
+        if (payment.method !== 'qr') {
+            return res.status(400).json({
+                success: false,
+                message: 'This payment is not QR method'
+            });
+        }
+
+        // 4) ต้องยังเป็น pending เท่านั้น
+        if (payment.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'QR code is only available for pending payments'
+            });
+        }
+
+        // 5) หา reservation → room → coworkingSpace
+        const reservation = await Reservation.findById(payment.reservation)
+            .populate({
+                path: 'room',
+                select: 'coworkingSpace'
+            });
+
+        if (!reservation || !reservation.room) {
+            return res.status(404).json({
+                success: false,
+                message: 'Reservation or room not found'
+            });
+        }
+
+        const coworkingSpaceId = reservation.room.coworkingSpace;
+
+        // 6) ดึง QR ของ space (admin upload)
         const qrDoc = await QrCode.findOne({
-            coworkingSpace: spaceId,
+            coworkingSpace: coworkingSpaceId,
             isActive: true
         });
 
         if (!qrDoc) {
-            return res.status(404).json({ success: false, message: 'No active QR code found' });
+            return res.status(404).json({
+                success: false,
+                message: 'No active QR code found for this co-working space'
+            });
         }
 
-        const imageBuffer = Buffer.from(qrDoc.imageData, 'base64');
-        res.set('Content-Type', qrDoc.mimeType);
-        return res.send(imageBuffer);
+        // 7) แปลงเป็น data URL
+        const dataUrl = `data:${qrDoc.mimeType};base64,${qrDoc.imageData}`;
+
+        // 8) ส่งกลับ
+        return res.status(200).json({
+            success: true,
+            data: {
+                paymentId: payment._id,
+                amount: payment.amount,
+                qrCode: dataUrl
+            }
+        });
 
     } catch (err) {
         return handleError(err, res);
@@ -633,32 +691,42 @@ exports.getQrCode = async (req, res) => {
 
 // =====================================================
 // @desc    Get active admin QR code metadata (for admin dashboard)
-// @route   GET /api/v1/payments/admin/qr-code/info?spaceId=:id
+// @route   GET /api/v1/payments/admin/qr-code/:spaceId
 // @access  Private (admin only)
 // =====================================================
-exports.getQrCodeInfo = async (req, res) => {
+exports.getQrCodeBySpace = async (req, res) => {
     try {
-        const { spaceId } = req.query;
+        const { spaceId } = req.params;
+
         if (!spaceId) {
-            return res.status(400).json({ success: false, message: 'spaceId is required' });
+            return res.status(400).json({
+                success: false,
+                message: 'spaceId is required'
+            });
         }
 
+        // 1) หา QR ของ space นี้
         const qrDoc = await QrCode.findOne({
             coworkingSpace: spaceId,
             isActive: true
-        }).populate('uploadedBy', 'name');
+        }).populate('uploadedBy', 'name email');
 
         if (!qrDoc) {
-            return res.status(404).json({ success: false, message: 'No active QR code found' });
+            return res.status(404).json({
+                success: false,
+                message: 'No active QR code found for this co-working space'
+            });
         }
 
-        // ส่งกลับเป็น dataUrl สำหรับ admin preview
+        // 2) แปลงเป็น data URL
         const dataUrl = `data:${qrDoc.mimeType};base64,${qrDoc.imageData}`;
 
+        // 3) response
         return res.status(200).json({
-            success   : true,
-            data      : {
-                imageUrl  : dataUrl,
+            success: true,
+            data: {
+                spaceId: spaceId,
+                qrCode: dataUrl,
                 uploadedBy: qrDoc.uploadedBy?.name,
                 uploadedAt: qrDoc.createdAt
             }
