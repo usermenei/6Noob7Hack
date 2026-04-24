@@ -33,7 +33,7 @@ router.put('/:id/fail',           protect, failPayment);        // Payment faile
 // US2-2  QR payment (using QrCode)
 // -------------------------------------------------------
 router.put('/:id/confirm-qr',       protect, confirmQrPayment); // User click confirm paid button
-router.get('/:paymentId/qr-code',   protect, getQrCode);        // Get Qr code for a payment (user & admin can see)
+router.get('/:id/qr-code',   protect, getQrCode);        // Get Qr code for a payment (user & admin can see)
 
 // Admin: get QR by coworking space id
 router.get('/admin/qr-code/:spaceId', protect, authorize('admin'), getQrCodeBySpace);

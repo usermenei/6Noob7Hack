@@ -56,12 +56,12 @@ const calcAmount = (room, slotCount) => room.price * slotCount;
 // =====================================================
 exports.createPayment = async (req, res) => {
     try {
-        const { reservationId, method } = req.body;
+        const { reservationId, method, amount } = req.body;
 
-        if (!reservationId || !method) {
+        if (!reservationId || !method || amount === undefined) {
             return res.status(400).json({
                 success: false,
-                message: 'reservationId and method are required'
+                message: 'reservationId, method, and amount are required'
             });
         }
 
@@ -103,12 +103,10 @@ exports.createPayment = async (req, res) => {
             });
         }
 
-        const amount = calcAmount(reservation.room, reservation.timeSlots.length);
-
         const payment = await Payment.create({
             reservation: reservationId,
             user: req.user.id,
-            amount,
+            amount: amount, // 👈 ใช้ตัวนี้แทน
             method,
             status: 'pending'
         });
