@@ -835,3 +835,29 @@ exports.adminCancelPayment = async (req, res) => {
         return handleError(err, res);
     }
 };
+
+// =====================================================
+// @desc    Get payment by reservationId
+// @route   GET /api/v1/payments/reservation/:reservationId
+// @access  Private (owner or admin)
+// =====================================================
+exports.getPaymentByReservation = async (req, res) => {
+  try {
+    const payment = await Payment.findOne({
+      reservation: req.params.reservationId,
+      status: { $in: ['pending', 'completed'] }
+    }).lean();
+
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'No payment found for this reservation' });
+    }
+
+    if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    return res.status(200).json({ success: true, data: payment });
+  } catch (err) {
+    return handleError(err, res);
+  }
+};
