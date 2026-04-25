@@ -266,4 +266,35 @@ describe("adminCancelPayment controller", () => {
       expect.objectContaining({ success: false })
     );
   });
+  test("❌ already cancelled — returns 400 and blocks double-cancel", async () => {
+    const payment = makePayment({ status: "cancelled" });
+    Payment.findById.mockResolvedValue(payment);
+ 
+    const req = mockReq({ params: { id: "payment-001" } });
+    const res = mockRes();
+ 
+    await adminCancelPayment(req, res);
+ 
+    expect(payment.save).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
+  });
+ 
+  // ── Catch block ─────────────────────────────────────────────────────────────
+ 
+  test("❌ DB error — catch block returns 500", async () => {
+    Payment.findById.mockRejectedValue(new Error("DB connection lost"));
+ 
+    const req = mockReq({ params: { id: "payment-001" } });
+    const res = mockRes();
+ 
+    await adminCancelPayment(req, res);
+ 
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
+  });
 });

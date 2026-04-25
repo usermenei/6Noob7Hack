@@ -1,4 +1,4 @@
-const { generateDailySlots } = require('../utils/generateTimeSlots');
+const { generateDailySlots } = require('../utils/generateTimeSlots'); // Update path if needed
 
 jest.mock('../models/TimeSlot', () => ({
   find: jest.fn(),
@@ -13,22 +13,20 @@ beforeEach(() => jest.clearAllMocks());
 
 /**
  * Build a fake TimeSlot document.
- * Uses UTC hours so timestamps match what the production code generates
- * (new Date(dateStr).setHours(...) runs in local time, but we compare
- *  via getTime(), so we mirror exactly how the code constructs dates).
+ * FIXED: Mirror the implementation's Date.UTC strategy so that the UTC fields 
+ * hold the exact wall-clock time without timezone offsets getting in the way.
  */
 function makeSlot(hour, dateStr = '2024-01-01', roomId = 'room-123') {
-  const start = new Date(dateStr);
-  start.setHours(hour, 0, 0, 0);
-  const end = new Date(dateStr);
-  end.setHours(hour + 1, 0, 0, 0);
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day, hour, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month - 1, day, hour + 1, 0, 0, 0));
   return { _id: `slot-${hour}`, room: roomId, startTime: start, endTime: end };
 }
 
 /**
  * Wire TimeSlot.find for a single test:
- *   call 1 → await TimeSlot.find(…)          resolves to existingSlots (array)
- *   call 2 → TimeSlot.find(…).sort(…)        resolves to finalSlots
+ * call 1 → await TimeSlot.find(…)          resolves to existingSlots (array)
+ * call 2 → TimeSlot.find(…).sort(…)        resolves to finalSlots
  */
 function mockFind(existingSlots, finalSlots) {
   TimeSlot.find
@@ -54,8 +52,9 @@ describe('generateDailySlots', () => {
     expect(TimeSlot.insertMany).toHaveBeenCalledTimes(1);
     const docs = TimeSlot.insertMany.mock.calls[0][0];
     expect(docs).toHaveLength(2);
-    expect(docs[0].startTime.getHours()).toBe(8);
-    expect(docs[1].startTime.getHours()).toBe(9);
+    // FIXED: Use getUTCHours() to match the implementation's Date.UTC storage
+    expect(docs[0].startTime.getUTCHours()).toBe(8);
+    expect(docs[1].startTime.getUTCHours()).toBe(9);
     expect(docs[0].room).toBe(ROOM_ID);
     expect(result).toEqual(finalSlots);
   });
@@ -71,7 +70,7 @@ describe('generateDailySlots', () => {
 
     const docs = TimeSlot.insertMany.mock.calls[0][0];
     expect(docs).toHaveLength(1);
-    expect(docs[0].startTime.getHours()).toBe(9);
+    expect(docs[0].startTime.getUTCHours()).toBe(9); // FIXED
   });
 
   // ── does NOT call insertMany when all slots already exist ──────────────────
@@ -86,22 +85,20 @@ describe('generateDailySlots', () => {
 
   // ── correct slot count for default window (08:00–20:00) ───────────────────
   test('creates 12 slots with default open/close times (08:00–20:00)', async () => {
-    // Build 12 slots: hours 8..19
     const allSlots = Array.from({ length: 12 }, (_, i) => makeSlot(8 + i));
     mockFind([], allSlots);
     TimeSlot.insertMany.mockResolvedValue(allSlots);
 
-    await generateDailySlots(ROOM_ID, DATE_STR); // use defaults
+    await generateDailySlots(ROOM_ID, DATE_STR); 
 
     const docs = TimeSlot.insertMany.mock.calls[0][0];
     expect(docs).toHaveLength(12);
-    expect(docs[0].startTime.getHours()).toBe(8);
-    expect(docs[11].startTime.getHours()).toBe(19);
+    expect(docs[0].startTime.getUTCHours()).toBe(8); // FIXED
+    expect(docs[11].startTime.getUTCHours()).toBe(19); // FIXED
   });
 
   // ── slot that would exceed closeTime is not created ────────────────────────
   test('omits a slot whose endTime would exceed closeTime', async () => {
-    // 08:00–09:30 window → only 08:00–09:00 fits; 09:00–10:00 exceeds 09:30
     const finalSlots = [makeSlot(8)];
     mockFind([], finalSlots);
     TimeSlot.insertMany.mockResolvedValue(finalSlots);
@@ -110,8 +107,8 @@ describe('generateDailySlots', () => {
 
     const docs = TimeSlot.insertMany.mock.calls[0][0];
     expect(docs).toHaveLength(1);
-    expect(docs[0].startTime.getHours()).toBe(8);
-    expect(docs[0].endTime.getHours()).toBe(9);
+    expect(docs[0].startTime.getUTCHours()).toBe(8); // FIXED
+    expect(docs[0].endTime.getUTCHours()).toBe(9); // FIXED
   });
 
   // ── openTime === closeTime → zero slots ────────────────────────────────────
@@ -148,14 +145,16 @@ describe('generateDailySlots', () => {
     expect(query.room).toBe(ROOM_ID);
     expect(query.startTime.$gte).toBeInstanceOf(Date);
     expect(query.startTime.$lte).toBeInstanceOf(Date);
-    // $gte must be start-of-day 00:00:00.000
-    expect(query.startTime.$gte.getHours()).toBe(0);
-    expect(query.startTime.$gte.getMinutes()).toBe(0);
-    expect(query.startTime.$gte.getSeconds()).toBe(0);
-    // $lte must be end-of-day 23:59:59.999
-    expect(query.startTime.$lte.getHours()).toBe(23);
-    expect(query.startTime.$lte.getMinutes()).toBe(59);
-    expect(query.startTime.$lte.getSeconds()).toBe(59);
+    
+    // FIXED: $gte must be start-of-day 00:00:00.000 (UTC, per the new logic)
+    expect(query.startTime.$gte.getUTCHours()).toBe(0);
+    expect(query.startTime.$gte.getUTCMinutes()).toBe(0);
+    expect(query.startTime.$gte.getUTCSeconds()).toBe(0);
+    
+    // FIXED: $lte must be end-of-day 23:59:59.999 (UTC)
+    expect(query.startTime.$lte.getUTCHours()).toBe(23);
+    expect(query.startTime.$lte.getUTCMinutes()).toBe(59);
+    expect(query.startTime.$lte.getUTCSeconds()).toBe(59);
   });
 
   // ── insertMany is called with { ordered: false } ───────────────────────────
@@ -175,8 +174,8 @@ describe('generateDailySlots', () => {
   test('returns result sorted by startTime ascending', async () => {
     const sortMock = jest.fn().mockResolvedValue([makeSlot(8), makeSlot(9)]);
     TimeSlot.find
-      .mockResolvedValueOnce([])                           // 1st call – existing (array)
-      .mockReturnValueOnce({ sort: sortMock });            // 2nd call – final list
+      .mockResolvedValueOnce([])                           
+      .mockReturnValueOnce({ sort: sortMock });            
     TimeSlot.insertMany.mockResolvedValue([]);
 
     await generateDailySlots(ROOM_ID, DATE_STR, '08:00', '10:00');
@@ -195,7 +194,6 @@ describe('generateDailySlots', () => {
 
   // ── error: insertMany rejects ─────────────────────────────────────────────
   test('propagates error when insertMany rejects', async () => {
-    // existing = [] so the function will attempt to insert
     TimeSlot.find.mockResolvedValueOnce([]);
     TimeSlot.insertMany.mockRejectedValue(new Error('DB write error'));
 
@@ -207,8 +205,8 @@ describe('generateDailySlots', () => {
   // ── error: final find (.sort) rejects ────────────────────────────────────
   test('propagates error when final TimeSlot.find (.sort) rejects', async () => {
     TimeSlot.find
-      .mockResolvedValueOnce([])                                               // existing – ok
-      .mockReturnValueOnce({ sort: jest.fn().mockRejectedValue(new Error('sort error')) }); // final – fail
+      .mockResolvedValueOnce([])                                               
+      .mockReturnValueOnce({ sort: jest.fn().mockRejectedValue(new Error('sort error')) }); 
     TimeSlot.insertMany.mockResolvedValue([]);
 
     await expect(

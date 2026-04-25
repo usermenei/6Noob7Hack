@@ -1,8 +1,7 @@
 const { createPayment, confirmPayment, failPayment } = require('../controllers/payments');
-const Payment = require('../models/Payment');
+const Payment     = require('../models/Payment');
 const Reservation = require('../models/Reservation');
 
-// Mock Mongoose Models
 jest.mock('../models/Payment');
 jest.mock('../models/Reservation');
 
@@ -10,36 +9,49 @@ describe('Payment Controller', () => {
     let req, res;
 
     beforeEach(() => {
-        // Reset mocks before each test
         jest.clearAllMocks();
 
-        // Mock Express Request and Response objects
         req = {
-            body: {},
+            body:   {},
             params: {},
-            user: { id: 'user123', role: 'user' }
+            user:   { id: 'user123', role: 'user' }
         };
 
         res = {
             status: jest.fn().mockReturnThis(),
-            json: jest.fn()
+            json:   jest.fn()
         };
     });
 
+    // ── createPayment ──────────────────────────────────────────────────────────
+
     describe('POST /payments (createPayment)', () => {
-        it('should return 400 if reservationId or method are missing', async () => {
-            req.body = { method: 'qr' }; // missing reservationId
+
+        it('should return 400 if reservationId is missing', async () => {
+            // amount is now required too — only method provided
+            req.body = { method: 'qr', amount: 200 };
             await createPayment(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({
                 success: false,
-                message: 'reservationId and method are required'
+                message: 'reservationId, method, and amount are required'
+            });
+        });
+
+        it('should return 400 if amount is missing', async () => {
+            req.body = { reservationId: 'res123', method: 'qr' }; // no amount
+            await createPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({
+                success: false,
+                message: 'reservationId, method, and amount are required'
             });
         });
 
         it('should return 400 for an invalid payment method', async () => {
-            req.body = { reservationId: 'res123', method: 'credit_card' };
+            req.body = { reservationId: 'res123', method: 'credit_card', amount: 200 };
             await createPayment(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
@@ -50,9 +62,8 @@ describe('Payment Controller', () => {
         });
 
         it('should return 404 if reservation is not found', async () => {
-            req.body = { reservationId: 'res123', method: 'qr' };
-            
-            // Mock Mongoose chaining
+            req.body = { reservationId: 'res123', method: 'qr', amount: 200 };
+
             Reservation.findById.mockReturnValue({
                 populate: jest.fn().mockReturnValue({
                     populate: jest.fn().mockResolvedValue(null)
@@ -69,15 +80,15 @@ describe('Payment Controller', () => {
         });
 
         it('should return 400 if reservation is already paid (not pending)', async () => {
-            req.body = { reservationId: 'res123', method: 'qr' };
-            
+            req.body = { reservationId: 'res123', method: 'qr', amount: 200 };
+
             Reservation.findById.mockReturnValue({
                 populate: jest.fn().mockReturnValue({
                     populate: jest.fn().mockResolvedValue({
-                        _id: 'res123',
-                        user: 'user123',
-                        status: 'success', // Already paid
-                        room: { name: 'Room A', price: 100 },
+                        _id:       'res123',
+                        user:      { toString: () => 'user123' },
+                        status:    'success', // already paid
+                        room:      { name: 'Room A', price: 100 },
                         timeSlots: [{}, {}]
                     })
                 })
@@ -93,21 +104,20 @@ describe('Payment Controller', () => {
         });
 
         it('should return 400 if a duplicate payment already exists', async () => {
-            req.body = { reservationId: 'res123', method: 'qr' };
-            
+            req.body = { reservationId: 'res123', method: 'qr', amount: 200 };
+
             Reservation.findById.mockReturnValue({
                 populate: jest.fn().mockReturnValue({
                     populate: jest.fn().mockResolvedValue({
-                        _id: 'res123',
-                        user: 'user123',
-                        status: 'pending',
-                        room: { name: 'Room A', price: 100 },
+                        _id:       'res123',
+                        user:      { toString: () => 'user123' },
+                        status:    'pending',
+                        room:      { name: 'Room A', price: 100 },
                         timeSlots: [{}, {}]
                     })
                 })
             });
 
-            // Mock existing payment found
             Payment.findOne.mockResolvedValue({ _id: 'pay123', status: 'pending' });
 
             await createPayment(req, res);
@@ -119,24 +129,25 @@ describe('Payment Controller', () => {
             });
         });
 
-        it('should successfully create a pending payment record', async () => {
-            req.body = { reservationId: 'res123', method: 'qr' };
-            
+        it('should successfully create a pending payment using amount from request body', async () => {
+            // amount now comes from req.body, NOT calculated from slots
+            req.body = { reservationId: 'res123', method: 'qr', amount: 200 };
+
             Reservation.findById.mockReturnValue({
                 populate: jest.fn().mockReturnValue({
                     populate: jest.fn().mockResolvedValue({
-                        _id: 'res123',
-                        user: 'user123',
-                        status: 'pending',
-                        room: { name: 'Room A', price: 100 },
-                        timeSlots: [{}, {}] // 2 slots * 100 = 200 total amount
+                        _id:       'res123',
+                        user:      { toString: () => 'user123' },
+                        status:    'pending',
+                        room:      { name: 'Room A', price: 100 },
+                        timeSlots: [{}, {}]
                     })
                 })
             });
 
-            Payment.findOne.mockResolvedValue(null); // No duplicate
+            Payment.findOne.mockResolvedValue(null);
             Payment.create.mockResolvedValue({
-                _id: 'pay123',
+                _id:    'pay123',
                 method: 'qr',
                 status: 'pending'
             });
@@ -145,29 +156,32 @@ describe('Payment Controller', () => {
 
             expect(Payment.create).toHaveBeenCalledWith(expect.objectContaining({
                 reservation: 'res123',
-                user: 'user123',
-                amount: 200, 
-                method: 'qr',
-                status: 'pending'
+                user:        'user123',
+                amount:      200,   // from req.body.amount
+                method:      'qr',
+                status:      'pending'
             }));
             expect(res.status).toHaveBeenCalledWith(201);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 success: true,
-                data: expect.any(Object)
+                data:    expect.any(Object)
             }));
         });
     });
 
+    // ── confirmPayment ─────────────────────────────────────────────────────────
+
     describe('PUT /payments/:id/confirm (Success Flow)', () => {
-        it('should set payment to completed and reservation to success atomically', async () => {
+
+        it('should set payment to completed and reservation to success', async () => {
             req.params.id = 'pay123';
-            
+
             const mockSave = jest.fn();
             Payment.findById.mockResolvedValue({
-                _id: 'pay123',
-                status: 'pending',
+                _id:         'pay123',
+                status:      'pending',
                 reservation: 'res123',
-                save: mockSave
+                save:        mockSave
             });
 
             Reservation.findByIdAndUpdate.mockResolvedValue(true);
@@ -179,33 +193,89 @@ describe('Payment Controller', () => {
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 success: true,
-                data: expect.objectContaining({
-                    status: 'completed',
+                data:    expect.objectContaining({
+                    status:        'completed',
                     transactionId: expect.stringMatching(/^TXN-/)
                 })
             }));
         });
+
+        it('should return 404 if payment not found', async () => {
+            req.params.id = 'nonexistent';
+            Payment.findById.mockResolvedValue(null);
+
+            await confirmPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith({
+                success: false,
+                message: 'Payment not found'
+            });
+        });
+
+        it('should return 400 if payment is not pending', async () => {
+            req.params.id = 'pay123';
+            Payment.findById.mockResolvedValue({ _id: 'pay123', status: 'completed' });
+
+            await confirmPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                success: false,
+                message: expect.stringContaining('Cannot confirm')
+            }));
+        });
     });
 
+    // ── failPayment ────────────────────────────────────────────────────────────
+
     describe('PUT /payments/:id/fail (Failure Flow)', () => {
+
         it('should set payment to failed and leave reservation untouched', async () => {
             req.params.id = 'pay123';
-            
+
             const mockSave = jest.fn();
             Payment.findById.mockResolvedValue({
-                _id: 'pay123',
+                _id:    'pay123',
                 status: 'pending',
-                save: mockSave
+                save:   mockSave
             });
 
             await failPayment(req, res);
 
             expect(mockSave).toHaveBeenCalled();
+            expect(Reservation.findByIdAndUpdate).not.toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 success: true,
                 message: expect.stringContaining('Reservation is still pending'),
-                data: expect.objectContaining({ status: 'failed' })
+                data:    expect.objectContaining({ status: 'failed' })
+            }));
+        });
+
+        it('should return 404 if payment not found', async () => {
+            req.params.id = 'nonexistent';
+            Payment.findById.mockResolvedValue(null);
+
+            await failPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith({
+                success: false,
+                message: 'Payment not found'
+            });
+        });
+
+        it('should return 400 if payment is not pending', async () => {
+            req.params.id = 'pay123';
+            Payment.findById.mockResolvedValue({ _id: 'pay123', status: 'failed' });
+
+            await failPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                success: false,
+                message: expect.stringContaining('Cannot fail')
             }));
         });
     });

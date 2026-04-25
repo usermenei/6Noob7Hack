@@ -316,4 +316,45 @@ describe("deleteReservation controller", () => {
     // status is now 'cancelled' — excluded from pending/success count queries
     expect(["pending", "success"]).not.toContain(reservation.status);
   });
+  // ── Missing branch: payment exists but is neither pending nor completed ──────
+  // e.g. status = 'failed' or 'cancelled' — the inner if(payment.status==='pending')
+  // is false, so payment.save must NOT be called, but reservation is still cancelled.
+ 
+  test("✅ payment with non-pending non-completed status (failed) — reservation cancelled, payment untouched", async () => {
+    const reservation = makeReservation({ status: "pending" });
+    const payment     = makePayment({ status: "failed" }); // neither pending nor completed
+ 
+    Reservation.findById.mockResolvedValue(reservation);
+    TimeSlot.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([futureSlot()]) });
+    Payment.findOne.mockResolvedValue(payment);
+ 
+    const req = mockReq({ params: { id: "reservation-001" } });
+    const res = mockRes();
+ 
+    await deleteReservation(req, res);
+ 
+    expect(reservation.status).toBe("cancelled");
+    expect(reservation.save).toHaveBeenCalled();
+    expect(payment.save).not.toHaveBeenCalled(); // payment left untouched
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, message: "Reservation cancelled" })
+    );
+  });
+ 
+  // ── Missing branch: catch block ───────────────────────────────────────────────
+ 
+  test("❌ unexpected DB error — catch block returns 500", async () => {
+    Reservation.findById.mockRejectedValue(new Error("DB connection lost"));
+ 
+    const req = mockReq({ params: { id: "reservation-001" } });
+    const res = mockRes();
+ 
+    await deleteReservation(req, res);
+ 
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, message: "Server error" })
+    );
+  });
 });

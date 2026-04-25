@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>28/28</span>
+                <span class='fraction'>29/29</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>4/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>27/27</span>
+                <span class='fraction'>28/28</span>
             </div>
         
             
@@ -131,13 +131,35 @@
 <a name='L66'></a><a href='#L66'>66</a>
 <a name='L67'></a><a href='#L67'>67</a>
 <a name='L68'></a><a href='#L68'>68</a>
-<a name='L69'></a><a href='#L69'>69</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-yes">24x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">13x</span>
+<span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -149,9 +171,6 @@
 <span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">13x</span>
-<span class="cline-any cline-yes">13x</span>
-<span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -165,11 +184,6 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-yes">12x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-yes">12x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -191,40 +205,51 @@
 <span class="cline-any cline-yes">10x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const TimeSlot = require('../models/TimeSlot');
+<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">const TimeSlot = require('../models/TimeSlot');
+&nbsp;
+// Store times as local UTC+7 wall-clock values directly in UTC fields.
+// The frontend reads them as-is without any timezone conversion needed.
 &nbsp;
 /**
- * Auto-generate 1-hour time slots for a room on a given date,
- * based on the coworking space's openTime / closeTime.
- *
- * Slots that already exist in the DB are skipped (upsert-safe).
- *
- * @param {ObjectId|string} roomId
- * @param {string} dateStr   – "YYYY-MM-DD"
- * @param {string} openTime  – "HH:MM"  e.g. "08:00"
- * @param {string} closeTime – "HH:MM"  e.g. "20:00"
- * @returns {Promise&lt;TimeSlot[]&gt;}  all slots for that room/day (existing + newly created)
+ * Create a Date where the UTC fields hold the UTC+7 local wall-clock time.
+ * e.g. local 08:00 → stored as 2025-01-01T08:00:00.000Z (NOT 01:00Z)
  */
-async function generateDailySlots(roomId, dateStr, openTime = '08:00', closeTime = '20:00') {
-  const [openHour, openMin]   = openTime.split(':').map(Number);
+function toLocalDate(dateStr, hour, minute) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+}
+&nbsp;
+/**
+ * Get the full "local day" range stored as UTC+7 wall-clock values.
+ * e.g. 2025-01-01 → 2025-01-01T00:00:00.000Z to 2025-01-01T23:59:59.999Z
+ */
+function getLocalDayRange(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const end   = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  return { start, end };
+}
+&nbsp;
+async function generateDailySlots(
+  roomId,
+  dateStr,
+  openTime  = '08:00',
+  closeTime = '20:00'
+) {
+  const [openHour,  openMin]  = openTime.split(':').map(Number);
   const [closeHour, closeMin] = closeTime.split(':').map(Number);
 &nbsp;
-  const startOfDay = new Date(dateStr);
-  const endOfDay   = new Date(dateStr);
-  startOfDay.setHours(0, 0, 0, 0);
-  endOfDay.setHours(23, 59, 59, 999);
+  const { start: startOfDay, end: endOfDay } = getLocalDayRange(dateStr);
 &nbsp;
-  // Fetch slots that already exist for this room on this day
+  // Find slots already generated for this room+day
   const existing = await TimeSlot.find({
-    room: roomId,
+    room:      roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
   });
 &nbsp;
@@ -233,48 +258,41 @@ async function generateDailySlots(roomId, dateStr, openTime = '08:00', closeTime
   );
 &nbsp;
   const toCreate = [];
+  let cursor    = toLocalDate(dateStr, openHour,  openMin);
+  const closeAt = toLocalDate(dateStr, closeHour, closeMin);
 &nbsp;
-  // Walk hour-by-hour from openTime → closeTime
-  let cursor = new Date(dateStr);
-  cursor.setHours(openHour, openMin, 0, 0);
-&nbsp;
-  const closeDate = new Date(dateStr);
-  closeDate.setHours(closeHour, closeMin, 0, 0);
-&nbsp;
-  while (cursor &lt; closeDate) {
+  while (cursor &lt; closeAt) {
     const slotStart = new Date(cursor);
     const slotEnd   = new Date(cursor);
-    slotEnd.setHours(slotEnd.getHours() + 1);
+    slotEnd.setUTCHours(slotEnd.getUTCHours() + 1);
 &nbsp;
-    if (slotEnd &gt; closeDate) break; // don't exceed closing time
+    if (slotEnd &gt; closeAt) break;
 &nbsp;
     if (!existingStarts.has(slotStart.getTime())) {
       toCreate.push({ room: roomId, startTime: slotStart, endTime: slotEnd });
     }
 &nbsp;
-    cursor.setHours(cursor.getHours() + 1);
+    cursor.setUTCHours(cursor.getUTCHours() + 1);
   }
 &nbsp;
   if (toCreate.length &gt; 0) {
     await TimeSlot.insertMany(toCreate, { ordered: false });
   }
 &nbsp;
-  // Return the full set of slots for this room/day
   return TimeSlot.find({
-    room: roomId,
+    room:      roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
   }).sort({ startTime: 1 });
 }
 &nbsp;
-module.exports = { generateDailySlots };
-&nbsp;</pre></td></tr></table></pre>
+module.exports = { generateDailySlots };</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-18T15:30:02.851Z
+                at 2026-04-25T13:27:02.350Z
             </div>
         <script src="../prettify.js"></script>
         <script>
