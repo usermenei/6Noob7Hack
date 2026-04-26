@@ -375,9 +375,28 @@ exports.getPendingCashPayments = async (req, res) => {
 exports.getPayment = async (req, res) => {
     try {
         const payment = await Payment.findById(req.params.id)
-            .populate({ path: 'reservation', select: 'status timeSlots room' })
-            .populate({ path: 'user', select: 'name email' })
-            .populate({ path: 'adminQrCode', select: 'coworkingSpace isActive' })
+            .populate({
+                path: 'reservation',
+                select: 'status timeSlots room',
+                populate: [
+                    {
+                        path: 'room',
+                        select: 'name coworkingSpace',
+                        populate: {
+                            path: 'coworkingSpace',
+                            select: 'name'
+                        }
+                    },
+                    {
+                        path: 'timeSlots',
+                        select: 'startTime endTime'
+                    }
+                ]
+            })
+            .populate({
+                path: 'user',
+                select: 'name email'
+            })
             .lean();
 
         if (!payment) {
@@ -404,26 +423,38 @@ exports.getPaymentsByUser = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const payments = await Payment.find({ user: userId }).sort({ createdAt: -1 }).lean();
-
-    const decorated = payments.map(p => {
-      if (p.status === 'refund_required') {
-        return { ...p, uiBadge: { color: 'orange', tooltip: 'Contact Admin' } };
-      }
-      return p;
-    });
+    const payments = await Payment.find({ user: userId })
+      .populate({
+        path: 'reservation',
+        populate: [
+          {
+            path: 'room',
+            select: 'name coworkingSpace',
+            populate: {
+              path: 'coworkingSpace',
+              select: 'name'
+            }
+          },
+          {
+            path: 'timeSlots',
+            select: 'startTime endTime'
+          }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json({
       success: true,
-      count: decorated.length,
-      data: decorated
+      count: payments.length,
+      data: payments
     });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: err.message || 'Server error' });
   }
 };
-
 // =====================================================
 // @desc    Update payment method (only when pending)
 // @route   PUT /api/v1/payments/:id/method
@@ -865,9 +896,20 @@ exports.getPaymentByReservation = async (req, res) => {
 exports.adminGetAllPayments = async (req, res) => {
     try {
         const payments = await Payment.find({})
-            .populate('reservation')
+            .populate({
+                path: 'reservation',
+                populate: {
+                    path: 'room',
+                    select: 'name coworkingSpace',
+                    populate: {
+                        path: 'coworkingSpace',
+                        select: 'name'
+                    }
+                }
+            })
             .populate('user', 'name email')
-            .sort({ updatedAt: -1 });
+            .sort({ updatedAt: -1 })
+            .lean();
 
         return res.status(200).json({ success: true, data: payments });
     } catch (err) {
